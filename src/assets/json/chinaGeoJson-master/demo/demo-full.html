@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1,maximum-scale=1">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <script src="https://cdn.huanggefan.cn/echarts/4.6.0/echarts.js"></script>
+    <script src="https://cdn.huanggefan.cn/jquery/3.4.1/jquery-3.4.1.js"></script>
+    <title>ECharts China Map Demo</title>
+    <style>
+        html,
+        body {
+            height: 100%;
+            width: 100%;
+            margin: 0;
+            padding: 0;
+            border: 0;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="main" style="height:100%; width:100%"></div>
+
+    <script type="text/javascript">
+        var datas = [
+            { name: '北京市', value: 9 },
+            { name: '合肥市', value: 9 },
+        ];
+        var options = {
+            tooltip: {
+                trigger: 'item'
+            },
+            visualMap: {
+                min: 0,
+                max: 250,
+                left: 'left',
+                top: 'bottom',
+                text: ['高', '低'],
+                calculable: true,
+                inRange: {
+                    color: ['lightskyblue', 'yellow', 'orangered']
+                }
+            },
+            series: [
+                { type: 'map', map: 'china', data: datas, zoom: 1, roam: true, scaleLimit: {min: 1, max: 10}}
+            ]
+        };
+
+        var chart = echarts.init(document.getElementById('main'));
+        $.getJSON(
+            'https://cdn.huanggefan.cn/geojson/china-full.json',
+            function (data) {
+                echarts.registerMap('china', data);
+                chart.setOption(options);
+            }
+        );
+    </script>
+</body>
+
+</html>
