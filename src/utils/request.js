@@ -1,7 +1,7 @@
 import axios from 'axios'
 import { Message } from 'element-ui'
 // 创建 axios 实例
-const baseURL = '/api'
+const baseURL = ''
 const request = axios.create({
     baseURL,
     timeout: 6000 // 请求超时时间
@@ -19,6 +19,7 @@ const errorHandler = error => {
 
 // request interceptor
 request.interceptors.request.use(config => {
+    config.headers['Content-Type'] = 'text/plain'
     return config
 }, errorHandler)
 

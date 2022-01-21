@@ -11,7 +11,7 @@ import * as d3geo from 'd3-geo'
 import { Line2 } from 'three/examples/jsm/lines/Line2'
 import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry'
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial'
-import * as TWEEN from 'tween.js'
+// import * as TWEEN from 'tween.js'
 import { mapGetters } from 'vuex'
 
 export default {
@@ -22,7 +22,12 @@ export default {
             renderer: null,
             map: null,
             projection: null,
-            center: [107.670379, 33.70435]
+            center: [107.670379, 33.70435],
+            mouse: { x: 0, y: 0 },
+            raycaster: null,
+            pick: null,
+            modelObject: {},
+            animationFrame: null
         }
     },
     computed: {
@@ -39,6 +44,9 @@ export default {
             this.camera.updateProjectionMatrix()
         }
     },
+    beforeDestroy() {
+        this.clearScene()
+    },
     methods: {
         init() {
             const container = document.getElementById('container')
@@ -52,6 +60,7 @@ export default {
             this.initRender(container)
             this.initControls()
             this.initMap()
+            this.initRaycaster()
             this.animate()
         },
         initScene() {
@@ -95,32 +104,46 @@ export default {
             this.map = new THREE.Object3D()
             const projection = d3geo.geoMercator().center(this.center).scale(80).translate([0, 0])
             this.projection = projection
-            console.log(this.areaTree)
             this.areaTree.forEach(elem => {
                 const province = new THREE.Object3D()
-                const coordinates = elem.geometry.coordinates[0]
-                coordinates.forEach(polygon => {
-                    const shape = new THREE.Shape()
-                    const lineMaterial = new THREE.LineBasicMaterial({ color: 0x2defff })
-                    const linGeometry = new THREE.Geometry()
-                    for (let i = 0; i < polygon.length; i++) {
-                        const [x, y] = projection(polygon[i])
-                        if (i === 0) {
-                            shape.moveTo(x, -y)
+                const coordinates = elem.geometry.coordinates
+                coordinates.forEach(multiPolygon => {
+                    multiPolygon.forEach(polygon => {
+                        const shape = new THREE.Shape()
+                        const lineMaterial = new THREE.LineBasicMaterial({ color: 0x2defff })
+                        const lineGeometry = new THREE.Geometry()
+                        for (let i = 0; i < polygon.length; i++) {
+                            const [x, y] = projection(polygon[i])
+                            if (i === 0) {
+                                shape.moveTo(x, -y)
+                            }
+                            shape.lineTo(x, -y)
+                            lineGeometry.vertices.push(new THREE.Vector3(x, -y, 1.01))
                         }
-                        shape.lineTo(x, -y)
-                        linGeometry.vertices.push(new THREE.Vector3(x, -y, 1.01))
-                    }
-                    const extrudeSettings = {
-                        depth: 1,
-                        bevelEnabled: false
-                    }
-                    const geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings)
-                    const material = new THREE.MeshBasicMaterial({ color: '#3480C4', transparent: true, opacity: 0.8 })
-                    const mesh = new THREE.Mesh(geometry, material)
-                    const line = new THREE.Line(linGeometry, lineMaterial)
-                    province.add(mesh)
-                    province.add(line)
+                        const extrudeSettings = {
+                            depth: 1,
+                            bevelEnabled: false
+                        }
+                        const geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings)
+                        // const material = new THREE.MeshBasicMaterial({ color: '#3480C4', transparent: true, opacity: 0.8 })
+
+                        const material = new THREE.MeshBasicMaterial({
+                            color: '#2defff',
+                            transparent: true,
+                            opacity: 0.4
+                        })
+                        const material1 = new THREE.MeshBasicMaterial({
+                            color: '#3480C4',
+                            transparent: true,
+                            opacity: 0.8
+                        })
+                        const mesh = new THREE.Mesh(geometry, [material, material1])
+                        const line = new THREE.Line(lineGeometry, lineMaterial)
+
+                        mesh.properties = elem.properties
+                        province.add(mesh)
+                        province.add(line)
+                    })
                 })
                 province.properties = elem.properties
                 if (province.properties.center) {
@@ -134,7 +157,7 @@ export default {
             })
             this.map.rotateX(-Math.PI / 2)
             this.scene.add(this.map)
-            this.selectAnimate()
+            // this.selectAnimate()
         },
         createTag(name, number) {
             const group = new THREE.Group()
@@ -182,49 +205,58 @@ export default {
                 p
             }
         },
-        selectAnimate() {
-            if (!this.map) return
-            const l = this.map.children.filter(item => item.properties.name).length
-            const tweenArray = []
-            for (let i = 0; i < l; i++) {
-                const pos = { s: 1 }
-                const tween1 = new TWEEN.Tween(pos)
-                    .to({ s: 2 }, 2000)
-                    .onStart(() => {
-                        this.map.children[i].children[0].material.color.set('#ff7f00')
-                        this.map.children[i].children[1].material.color.set('#FFFFFF')
-                    })
-                    .onUpdate(() => {
-                        this.map.children[i].scale.set(1, 1, pos.s)
-                    })
-                    .onComplete(() => {
-                        tween2.start()
-                    })
-                const tween2 = new TWEEN.Tween(pos)
-                    .to({ s: 1 }, 1000)
-                    .onUpdate(() => {
-                        this.map.children[i].scale.set(1, 1, pos.s)
-                    })
-                    .onComplete(() => {
-                        this.map.children[i].children[0].material.color.set('#3480C4')
-                        this.map.children[i].children[1].material.color.set('#2defff')
-                    })
-                tweenArray.push(tween1)
+        initRaycaster() {
+            this.raycaster = new THREE.Raycaster()
+            this.mouse = new THREE.Vector2()
+            const onMouseMove = e => {
+                this.mouse.x = (e.clientX / this.w) * 2 - 1
+                this.mouse.y = -(e.clientY / this.h) * 2 + 1
             }
-            tweenArray.forEach((item, index) => {
-                if (index === tweenArray.length - 1) {
-                    item.chain(tweenArray[0])
-                } else {
-                    item.chain(tweenArray[index + 1])
+
+            const onClick = e => {
+                this.mouse.x = (e.clientX / this.w) * 2 - 1
+                this.mouse.y = -(e.clientY / this.h) * 2 + 1
+                if (this.pick?.object?.properties?.name) {
+                    this.$router.push({ path: '/province', query: { id: this.pick.object.properties.adcode, center: this.pick.object.properties.center } })
                 }
-            })
-            tweenArray[0].start()
+            }
+            const container = document.getElementById('container')
+            container.addEventListener('mousemove', onMouseMove, false)
+            container.addEventListener('click', onClick, false)
         },
         animate() {
-            TWEEN.update()
-            requestAnimationFrame(this.animate)
+            this.animationFrame = requestAnimationFrame(this.animate)
             this.renderer.render(this.scene, this.camera)
+            this.raycaster.setFromCamera(this.mouse, this.camera)
+            const intersects = this.raycaster.intersectObjects(this.map.children, true)
+            if (this.pick) {
+                this.pick.object.material[0].color.set('#2defff')
+                this.pick.object.material[0].opacity = 0.4
+                this.pick.object.material[1].color.set('#3480C4')
+                this.pick.object.material[1].opacity = 0.8
+                this.pick.object.scale.set(1, 1, 1)
+            }
+            this.pick = null
+            this.pick = intersects.find(item => item.object.material && item.object.material.length === 2)
+            if (this.pick) {
+                this.pick.object.material[0].color.set('#ff7f00')
+                this.pick.object.material[0].opacity = 0.88
+                this.pick.object.material[1].color.set('#ff7f00')
+                this.pick.object.material[1].opacity = 0.8
+                this.pick.object.scale.set(1, 1, 2)
+            }
             this.controls.update()
+            // TWEEN.update()
+        },
+        clearScene() {
+            if (this.animationFrame) cancelAnimationFrame(this.animationFrame)
+            this.scene.dispose()
+            this.scene = null
+            this.camera = null
+            this.renderer = null
+            this.map = null
+            this.projection = null
+            this.raycaster = null
         }
     }
 }
@@ -238,6 +270,7 @@ export default {
     #container {
         width: 100%;
         height: 100%;
+        border: none;
     }
 }
 </style>

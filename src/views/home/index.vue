@@ -12,7 +12,7 @@
 import HomeCenter from './components/home-center.vue'
 import HomeLeft from './components/home-left.vue'
 import HomeRight from './components/home-right.vue'
-import { mapActions } from 'vuex'
+import { mapActions, mapGetters } from 'vuex'
 export default {
     name: 'Home',
     components: {
@@ -24,6 +24,9 @@ export default {
         return {
             show: false
         }
+    },
+    computed: {
+        ...mapGetters(['areaTree'])
     },
     created() {
         this.SET_DATA().then(res => {

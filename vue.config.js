@@ -9,7 +9,17 @@ const vueConfig = {
     chainWebpack: config => {
         config.resolve.alias.set('@', resolve('src'))
     },
-    configureWebpack: {},
+    configureWebpack: {
+        module: {
+            rules: [
+                {
+                    test: /\.mjs$/,
+                    include: /node_modules/,
+                    type: 'javascript/auto'
+                }
+            ]
+        }
+    },
     css: {
         loaderOptions: {
             scss: {
@@ -42,11 +52,11 @@ const vueConfig = {
             errors: true
         },
         proxy: {
-            '/api': {
-                target: 'https://c.m.163.com/ug/api',
+            '/wangyi': {
+                target: 'https://c.m.163.com/ug/',
                 changeOrigin: true,
                 pathRewrite: {
-                    ['/api']: ''
+                    ['/wangyi']: ''
                 }
             }
         }
